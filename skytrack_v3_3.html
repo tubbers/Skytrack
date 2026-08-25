@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<title>SkyTrack v3.3</title>
+<style>
+  :root{
+    --ink:#ff9a76; --ink-dim:#a8543c; --hot:#ffcf6b; --track:#ff6b35;
+    --grid:#4a1a12; --panel:rgba(18,4,2,.93); --edge:#43170f;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;background:#000;overflow:hidden;
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--ink)}
+  #cam{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;display:none;filter:contrast(1.15)}
+  #sky{position:fixed;inset:0;touch-action:none}
+
+  .bar{position:fixed;left:0;right:0;top:0;display:flex;gap:8px;padding:10px 12px;
+    padding-top:calc(10px + env(safe-area-inset-top));align-items:flex-start;pointer-events:none}
+  .bar>*{pointer-events:auto}
+  .chip{background:var(--panel);border:1px solid var(--edge);border-radius:2px;
+    padding:8px 12px;font-size:15px;color:var(--ink);font-weight:600;
+    display:flex;flex-direction:column;gap:2px;min-width:0}
+  .chip small{font-family:var(--mono);font-size:11px;font-weight:400;color:var(--ink-dim);
+    letter-spacing:.06em;text-transform:uppercase}
+  button{font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--edge);
+    border-radius:2px;padding:9px 11px;font-size:13px}
+  button:active{background:#2a0a05}
+  button.on{color:#000;background:var(--hot);border-color:var(--hot)}
+  .icons{margin-left:auto;display:flex;flex-direction:column;gap:8px;align-items:flex-end}
+
+  #banner{position:fixed;left:0;right:0;bottom:calc(100% - 0px);display:none}
+  #banner.show{display:flex;position:fixed;left:12px;right:12px;
+    top:calc(66px + env(safe-area-inset-top));z-index:15;align-items:center;gap:10px;
+    background:rgba(255,207,107,.14);border:1px solid var(--hot);border-radius:2px;
+    padding:7px 10px;font-size:12px;color:var(--hot);line-height:1.3}
+  #banner b{font-weight:600}
+  #banner span{flex:1;min-width:0;color:var(--hot);opacity:.85}
+  #banner button{background:transparent;border:0;color:var(--hot);padding:2px 6px;font-size:16px}
+
+  #deck{position:fixed;left:0;right:0;bottom:0;background:var(--panel);
+    border-top:1px solid var(--edge);padding:10px 12px calc(10px + env(safe-area-inset-bottom))}
+  #readout{display:flex;justify-content:space-between;align-items:baseline;
+    font-family:var(--mono);font-size:12px;color:var(--ink-dim)}
+  #readout b{color:var(--hot);font-size:16px;font-weight:600}
+  #look{font-family:var(--mono);font-size:11px;color:var(--ink-dim);margin-top:2px}
+  #moonline{font-family:var(--mono);font-size:11px;color:#9fb8d6;margin-top:2px}
+  #windows{font-family:var(--mono);font-size:12px;color:var(--ink);margin-top:6px;line-height:1.5}
+  #windows .no{color:var(--ink-dim)}
+  #rail{width:100%;margin:10px 0 2px;height:26px;-webkit-appearance:none;background:transparent}
+  #rail::-webkit-slider-runnable-track{height:3px;background:var(--edge)}
+  #rail::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;margin-top:-9px;
+    border-radius:50%;background:var(--hot);border:2px solid #000}
+  #rail::-moz-range-track{height:3px;background:var(--edge)}
+  #rail::-moz-range-thumb{width:18px;height:18px;border:2px solid #000;border-radius:50%;background:var(--hot)}
+  .rowbtn{display:flex;gap:8px;margin-top:8px}
+  .rowbtn button{flex:1;text-align:center}
+
+  .sheet{position:fixed;inset:0;background:rgba(0,0,0,.88);display:none;z-index:20;
+    overflow-y:auto;padding:calc(16px + env(safe-area-inset-top)) 14px 90px}
+  .sheet.open{display:block}
+  .sheet h2{font-size:13px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-dim);
+    margin:20px 0 8px;font-weight:600}
+  .sheet h2:first-child{margin-top:0}
+  .list{display:flex;flex-direction:column;gap:1px;background:var(--edge)}
+  .list button{border:0;border-radius:0;text-align:left;padding:12px;font-size:15px;
+    background:#0d0301;display:flex;justify-content:space-between;gap:10px}
+  .list button span{font-family:var(--mono);font-size:11px;color:var(--ink-dim)}
+  .field{display:flex;gap:8px;align-items:center;margin:8px 0;font-size:13px}
+  .field label{flex:0 0 96px;color:var(--ink-dim);font-family:var(--mono);
+    font-size:11px;text-transform:uppercase;letter-spacing:.08em}
+  input[type=text],input[type=number],input[type=date],textarea{flex:1;min-width:0;background:#0d0301;
+    color:var(--ink);border:1px solid var(--edge);border-radius:2px;padding:9px;
+    font-family:var(--mono);font-size:14px}
+  textarea{width:100%;height:130px;resize:vertical}
+  input[type=range]{flex:1}
+  .close{position:fixed;right:12px;bottom:calc(16px + env(safe-area-inset-bottom));z-index:21}
+  .note{font-size:12px;color:var(--ink-dim);line-height:1.5;margin:8px 0}
+  .diag{font-family:var(--mono);font-size:12px;line-height:1.7;background:#0d0301;
+    border:1px solid var(--edge);padding:10px;margin:8px 0}
+  .diag i{font-style:normal;color:var(--ink-dim);display:inline-block;width:118px}
+  .ok{color:#7fbf6a}.bad{color:#ff6b35}
+  #toast{position:fixed;left:50%;transform:translateX(-50%);bottom:130px;background:var(--hot);
+    color:#000;padding:8px 14px;border-radius:2px;font-size:13px;font-weight:600;
+    opacity:0;transition:opacity .25s;pointer-events:none;z-index:30;max-width:88%;text-align:center}
+  #toast.show{opacity:1}
+  .crosshair{position:fixed;left:50%;top:50%;width:34px;height:34px;margin:-17px 0 0 -17px;pointer-events:none}
+  .crosshair::before,.crosshair::after{content:"";position:absolute;background:var(--hot);opacity:.8}
+  .crosshair::before{left:50%;top:0;bottom:0;width:1px;margin-left:-.5px}
+  .crosshair::after{top:50%;left:0;right:0;height:1px;margin-top:-.5px}
+</style>
+</head>
+<body>
+<video id="cam" playsinline muted autoplay></video>
+<canvas id="sky"></canvas>
+<div class="crosshair"></div>
+
+<div class="bar">
+  <button class="chip" id="targetBtn"><small>Target</small><span id="targetName">Moon</span></button>
+  <div class="icons">
+    <button id="setBtn">Setup</button>
+    <button id="camBtn">Camera</button>
+    <button id="markBtn">Mark horizon</button>
+  </div>
+</div>
+
+<div id="banner">
+  <b id="bTitle">Pointing off</b><span id="bBody"></span>
+  <button id="bAct">↻</button><button id="bClose">✕</button>
+</div>
+
+<div id="deck">
+  <div id="readout">
+    <div><b id="clock">--:--</b> <span id="datelbl"></span></div>
+    <div id="altaz">alt --° az --°</div>
+  </div>
+  <div id="look">looking: az --° alt --° · fov --°</div>
+  <div id="moonline"></div>
+  <input type="range" id="rail" min="0" max="1000" value="0">
+  <div id="windows">Pick a target to see its path.</div>
+  <div class="rowbtn">
+    <button id="nowBtn">Now</button>
+    <button id="findBtn">Find target</button>
+    <button id="alignBtn">Align</button>
+    <button id="playBtn">Play night</button>
+  </div>
+</div>
+
+<div class="sheet" id="targetSheet">
+  <div class="field" style="margin-top:0"><label>Search</label>
+    <input type="text" id="searchIn" placeholder="M42, Orion, prawn, globular"></div>
+  <h2 id="dsoHead">Deep sky</h2><div class="list" id="dsoList"></div>
+  <h2>Solar system</h2><div class="list" id="ssList"></div>
+  <h2>Enter coordinates</h2>
+  <div class="field"><label>Name</label><input type="text" id="mName" placeholder="Comet 220P"></div>
+  <div class="field"><label>RA</label><input type="text" id="mRA" placeholder="18h10m00s or 272.5"></div>
+  <div class="field"><label>Dec</label><input type="text" id="mDec" placeholder="-24d05m or -24.08"></div>
+  <button id="mGo" style="width:100%;margin-top:6px">Use these coordinates</button>
+  <p class="note">Fixed coordinates. For a comet, use the position for the middle of the night.</p>
+  <button class="close" id="closeTargets">Done</button>
+</div>
+
+<div class="sheet" id="setSheet">
+  <h2>Pointing</h2>
+  <div class="diag" id="diag"></div>
+  <div class="rowbtn"><button id="enableBtn">Turn on pointing</button><button id="recheckBtn">Re-check</button><button id="holdBtn">Hold view</button></div>
+  <p class="note">Chrome can block this at the browser level: <b>Chrome menu → Settings → Site settings → Motion sensors</b> must be allowed. That switch is off on some phones and there is no prompt when it blocks.</p>
+  <div class="rowbtn"><button id="darkBtn">Dark: nautical −12°</button></div>
+  <p class="note">Nautical for narrowband, astronomical for broadband. This sets the window the clear times are measured within, and where the track dims at each end.</p>
+  <div class="rowbtn"><button id="hatchBtn" class="on">Ground hatching on</button>
+    <button id="moonBtn">Moon ring: off</button></div>
+  <div class="field"><label>Declination</label><input type="number" id="decl" step="0.1" value="12.7"></div>
+  <div class="field"><label>Nudge</label><input type="range" id="tweak" min="-40" max="40" step="0.5" value="0"></div>
+  <div class="field"><label>Field of view</label><input type="range" id="fovIn" min="15" max="120" step="1" value="60"></div>
+  <p class="note">Pinch to zoom, double-tap to reset to 60°. If the stars sit off to one side, use Align — centre a bright star and tap its name.</p>
+
+  <h2>Where you are</h2>
+  <div class="list">
+    <button data-site="-33.80,151.21,Willoughby">Willoughby <span>Bortle 7</span></button>
+    <button data-site="-33.45,150.80,Blaxlands Ridge">Blaxlands Ridge <span>Bortle 3/4</span></button>
+    <button id="gpsBtn">Use my location <span>GPS</span></button>
+  </div>
+  <div class="field"><label>Latitude</label><input type="number" id="latIn" step="0.0001"></div>
+  <div class="field"><label>Longitude</label><input type="number" id="lonIn" step="0.0001"></div>
+  <div class="field"><label>Night of</label><input type="date" id="dateIn"></div>
+
+  <h2>Horizon</h2>
+  <p class="note" id="horizNote">No points loaded.</p>
+  <div class="rowbtn">
+    <button id="loadWill">Willoughby</button>
+    <button id="loadWheeny">Wheeny Creek</button>
+    <button id="importFileBtn">Open a .txt</button>
+    <button id="undoHoriz">Undo last</button>
+    <button id="clearHoriz">Clear all</button>
+  </div>
+  <p class="note">Paste a Telescopius horizon (azimuth then altitude, one pair per line):</p>
+  <input type="file" id="horizFile" accept=".txt,.csv,text/plain" style="display:none">
+  <textarea id="horizText" placeholder="138 26&#10;144 27&#10;148 32"></textarea>
+  <div class="rowbtn">
+    <button id="importHoriz">Load pasted</button>
+    <button id="fillHoriz">Copy current out</button>
+    <button id="exportHoriz">Download .txt</button>
+  </div>
+  <button class="close" id="closeSet">Done</button>
+</div>
+
+<div class="sheet" id="alignSheet">
+  <h2>Centre this star, then tap it</h2>
+  <div class="list" id="alignList"></div>
+  <button class="close" id="closeAlign">Cancel</button>
+</div>
+
+<div id="toast"></div>
+
+<script>
+"use strict";
+const D=Math.PI/180, R2D=180/Math.PI, $=id=>document.getElementById(id);
+
+/* ---------- astronomy ---------- */
+function jd(d){return d.getTime()/86400000+2440587.5;}
+function gmst(j){const T=(j-2451545)/36525;
+  let g=280.46061837+360.98564736629*(j-2451545)+0.000387933*T*T-T*T*T/38710000;
+  return((g%360)+360)%360;}
+function altaz(ra,dec,j,lat,lon){
+  const H=((((gmst(j)+lon-ra)%360)+360)%360)*D, dr=dec*D, lr=lat*D;
+  const alt=Math.asin(Math.sin(dr)*Math.sin(lr)+Math.cos(dr)*Math.cos(lr)*Math.cos(H));
+  let az=Math.atan2(Math.sin(H),Math.cos(H)*Math.sin(lr)-Math.tan(dr)*Math.cos(lr))*R2D+180;
+  return{alt:alt*R2D,az:((az%360)+360)%360};
+}
+function sunRaDec(j){
+  const n=j-2451545, L=(280.460+0.9856474*n)%360, g=((357.528+0.9856003*n)%360)*D;
+  const lam=(L+1.915*Math.sin(g)+0.020*Math.sin(2*g))*D, e=23.439*D;
+  return{ra:((Math.atan2(Math.cos(e)*Math.sin(lam),Math.cos(lam))*R2D)+360)%360,
+         dec:Math.asin(Math.sin(e)*Math.sin(lam))*R2D};
+}
+function moonRaDec(j){
+  const n=j-2451545, L=218.316+13.176396*n, M=(134.963+13.064993*n)*D, F=(93.272+13.229350*n)*D;
+  const lam=(L+6.289*Math.sin(M))*D, bet=(5.128*Math.sin(F))*D, e=23.439*D;
+  const x=Math.cos(bet)*Math.cos(lam),
+        y=Math.cos(e)*Math.cos(bet)*Math.sin(lam)-Math.sin(e)*Math.sin(bet),
+        z=Math.sin(e)*Math.cos(bet)*Math.sin(lam)+Math.cos(e)*Math.sin(bet);
+  return{ra:((Math.atan2(y,x)*R2D)+360)%360,dec:Math.asin(z)*R2D};
+}
+
+function sep(a,b){ // angular separation of two {ra,dec} in degrees
+  const d1=a.dec*D,d2=b.dec*D,dr=(a.ra-b.ra)*D;
+  return Math.acos(Math.max(-1,Math.min(1,
+    Math.sin(d1)*Math.sin(d2)+Math.cos(d1)*Math.cos(d2)*Math.cos(dr))))*R2D;
+}
+function moonLit(j){ // illuminated fraction
+  return (1-Math.cos(sep(moonRaDec(j),sunRaDec(j))*D))/2;
+}
+
+/* two-body ephemeris, 220P/McNaught. Elements epoch 2025 Nov 21.0, equinox 2000.0
+   (S. Yoshida / MPC). P and Q are the equatorial Gaussian vectors.
+   Checked against JPL-derived positions for late Aug 2026: agrees to a few arcmin. */
+const C220={T:2461205.6376,a:3.1206573,e:0.5003621,n:0.17878659,
+  P:[0.87167131,-0.44908573,-0.19624256],Q:[0.48500176,0.84800108,0.21369946]};
+function cometRaDec(j,el){
+  const M=(el.n*(j-el.T))*D;
+  let E=M;
+  for(let i=0;i<40;i++)E=E-(E-el.e*Math.sin(E)-M)/(1-el.e*Math.cos(E));
+  const x=el.a*(Math.cos(E)-el.e), y=el.a*Math.sqrt(1-el.e*el.e)*Math.sin(E);
+  const d=j-2451545, g=((357.528+0.9856003*d)%360)*D,
+        lam=((280.460+0.9856474*d)%360+1.915*Math.sin(g)+0.020*Math.sin(2*g))*D,
+        Rr=1.00014-0.01671*Math.cos(g)-0.00014*Math.cos(2*g), e0=23.439*D;
+  const sx=Rr*Math.cos(lam), sy=Rr*Math.cos(e0)*Math.sin(lam), sz=Rr*Math.sin(e0)*Math.sin(lam);
+  const X=el.P[0]*x+el.Q[0]*y+sx, Y=el.P[1]*x+el.Q[1]*y+sy, Z=el.P[2]*x+el.Q[2]*y+sz;
+  const rr=Math.sqrt(X*X+Y*Y+Z*Z);
+  return{ra:((Math.atan2(Y,X)*R2D)%360+360)%360,dec:Math.asin(Z/rr)*R2D,dist:rr};
+}
+
+/* ---------- catalogues ---------- */
+const DSO=[
+ ["NGC 6559","Chinese Dragon",272.50,-24.08],["NGC 2736","Pencil Nebula",135.00,-45.95],
+ ["NGC 6888","Crescent",303.03,38.35],["NGC 7293","Helix",337.41,-20.84],
+ ["M17","Omega / Swan",275.20,-16.18],["IC 4628","Prawn",253.50,-40.33],
+ ["IC 4604","Rho Ophiuchi",246.00,-23.45],["NGC 3372","Eta Carinae",161.26,-59.68],
+ ["NGC 2070","Tarantula",84.68,-69.10],["M8","Lagoon",270.92,-24.38],
+ ["M20","Trifid",270.60,-23.03],["M42","Orion",83.82,-5.39],
+ ["M31","Andromeda",10.68,41.27],["M83","Southern Pinwheel",204.25,-29.87],
+ ["NGC 253","Sculptor Galaxy",11.89,-25.29],["NGC 55","",3.72,-39.22],
+ ["NGC 300","",13.72,-37.68],["NGC 7582","Grus Quartet",349.60,-42.37],
+ ["NGC 5139","Omega Centauri",201.70,-47.48],["NGC 104","47 Tucanae",6.02,-72.08],
+ ["LMC","",80.89,-69.76],["SMC","",13.19,-72.83],["IC 2944","Running Chicken",173.80,-63.37]
+];
+const MESSIER=[["M1","Crab Nebula","supernova remnant",83.633,22.014,8.0,8.4],["M2","","globular",323.363,-0.823,8.4,6.25],["M3","","globular",205.547,28.375,16.2,6.39],["M4","","globular",245.897,-26.526,28.2,5.4],["M5","","globular",229.641,2.083,15.0,5.95],["M6","Butterfly Cluster","open cluster",265.086,-32.254,15.6,4.2],["M7","Ptolemy's Cluster","open cluster",268.463,-34.793,22.2,3.3],["M8","Lagoon Nebula","nebula",270.922,-24.38,45.0,5.8],["M9","","globular",259.799,-18.516,6.9,8.42],["M10","","globular",254.287,-4.099,9.3,4.98],["M11","Amas de l'Ecu de Sobieski","open cluster",282.775,-6.27,9.0,5.8],["M12","","globular",251.811,-1.948,11.1,6.07],["M13","Hercules Globular Cluster","globular",250.423,36.461,16.5,5.8],["M14","","globular",264.401,-3.246,9.9,5.73],["M15","","globular",322.493,12.167,11.1,6.3],["M16","Eagle Nebula","nebula",274.701,-13.807,120.0,6.0],["M17","Checkmark Nebula","nebula",275.196,-16.172,12.6,7.0],["M18","","open cluster",274.994,-17.102,6.0,6.9],["M19","","globular",255.657,-26.268,7.5,5.57],["M20","Trifid Nebula","nebula",270.675,-22.972,28.0,8.5],["M21","","open cluster",271.056,-22.49,6.0,5.9],["M22","","globular",279.101,-23.903,12.6,6.17],["M23","","open cluster",269.27,-18.985,16.8,5.5],["M24","Small Sgr Star Cloud","association",274.234,-18.515,120.0,4.5],["M25","","open cluster",277.945,-19.115,14.1,4.6],["M26","","open cluster",281.328,-9.384,6.0,8.87],["M27","Dumbbell Nebula","planetary",299.902,22.721,6.7,7.4],["M28","","globular",276.137,-24.87,5.1,6.9],["M29","","open cluster",305.991,38.508,3.6,6.6],["M30","","globular",325.092,-23.179,9.0,7.1],["M31","Andromeda Galaxy","galaxy",10.685,41.269,177.8,3.44],["M32","","galaxy",10.674,40.865,7.7,8.13],["M33","Triangulum Galaxy","galaxy",23.462,30.66,62.1,5.79],["M34","","open cluster",40.531,42.746,22.5,5.2],["M35","","open cluster",92.271,24.339,24.0,5.1],["M36","","open cluster",84.074,34.141,7.2,6.0],["M37","","open cluster",88.076,32.553,11.4,5.6],["M38","","open cluster",82.177,35.855,9.6,6.4],["M39","","open cluster",322.951,48.438,19.5,4.6],["M40","Winnecke 4","double star",185.52,58.083,0.8,9.6],["M41","","open cluster",101.5,-20.754,12.0,4.5],["M42","Great Orion Nebula","cluster+neb",83.819,-5.39,90.0,4.0],["M43","Mairan's Nebula","HII region",83.881,-5.267,20.0,9.0],["M44","Beehive","open cluster",130.093,19.672,108.6,3.1],["M45","Pleiades","open cluster",56.75,24.117,110,1.6],["M46","","open cluster",115.445,-14.81,21.0,6.1],["M47","","open cluster",114.146,-14.483,19.8,4.4],["M48","","open cluster",123.43,-5.75,28.2,5.8],["M49","","galaxy",187.445,8.0,10.2,8.28],["M50","","open cluster",105.669,-8.364,14.1,5.9],["M51","Whirlpool Galaxy","galaxy",202.47,47.195,13.7,8.36],["M52","","open cluster",351.202,61.593,9.9,6.9],["M53","","globular",198.23,18.169,9.0,7.79],["M54","","globular",283.764,-30.478,5.1,7.7],["M55","","globular",294.998,-30.962,12.0,6.49],["M56","","globular",289.148,30.184,5.8,8.4],["M57","Ring Nebula","planetary",283.396,33.029,1.3,8.8],["M58","","galaxy",189.431,11.818,5.0,10.3],["M59","","galaxy",190.509,11.647,4.5,9.56],["M60","","galaxy",190.917,11.553,6.8,8.79],["M61","","galaxy",185.479,4.474,6.9,10.25],["M62","","globular",255.302,-30.112,7.8,7.39],["M63","Sunflower Galaxy","galaxy",198.956,42.029,11.8,8.61],["M64","Black Eye Galaxy","galaxy",194.182,21.683,10.5,8.52],["M65","","galaxy",169.733,13.092,7.6,9.32],["M66","","galaxy",170.062,12.992,10.3,8.92],["M67","","open cluster",132.834,11.812,33.0,6.9],["M68","","globular",189.867,-26.743,6.6,7.96],["M69","","globular",277.847,-32.348,5.7,8.31],["M70","","globular",280.803,-32.292,6.6,9.06],["M71","","globular",298.442,18.778,6.9,6.1],["M72","","globular",313.366,-12.537,4.5,8.96],["M73","","other",314.733,-12.636,"",8.9],["M74","","galaxy",24.174,15.784,9.9,9.31],["M75","","globular",301.52,-21.922,3.6,8.26],["M76","Barbell Nebula","planetary",25.582,51.575,1.1,10.1],["M77","","galaxy",40.67,-0.013,6.1,9.29],["M78","","reflection neb",86.691,0.079,4.5,8.0],["M79","","globular",81.044,-24.524,7.2,8.16],["M80","","globular",244.26,-22.975,5.7,7.3],["M81","Bode's Galaxy","galaxy",148.888,69.065,21.6,6.92],["M82","Cigar Galaxy","galaxy",148.97,69.679,11.0,8.3],["M83","Southern Pinwheel Galaxy","galaxy",204.254,-29.865,13.6,7.21],["M84","","galaxy",186.266,12.887,7.4,9.79],["M85","","galaxy",186.35,18.192,7.0,9.05],["M86","","galaxy",186.549,12.946,11.5,8.86],["M87","Virgo Galaxy","galaxy",187.706,12.391,7.1,9.0],["M88","","galaxy",187.997,14.42,8.7,10.33],["M89","","galaxy",188.916,12.556,8.1,10.08],["M90","","galaxy",189.207,13.163,9.1,9.54],["M91","","galaxy",188.86,14.496,5.5,10.96],["M92","","globular",259.28,43.137,14.4,6.52],["M93","","open cluster",116.122,-23.853,15.0,6.2],["M94","","galaxy",192.721,41.12,7.7,8.24],["M95","","galaxy",160.99,11.704,7.2,9.77],["M96","","galaxy",161.691,11.82,8.3,9.21],["M97","Owl Nebula","planetary",168.699,55.019,3.6,9.9],["M98","","galaxy",183.451,14.9,11.0,10.84],["M99","Coma Pinwheel","galaxy",184.707,14.417,5.0,9.84],["M100","","galaxy",185.728,15.822,6.1,9.47],["M101","Pinwheel Galaxy","galaxy",210.802,54.349,24.0,7.9],["M102","Spindle Galaxy (disputed)","galaxy",226.623,55.763,4.7,9.9],["M103","","open cluster",23.341,60.658,4.5,7.4],["M104","Sombrero Galaxy","galaxy",189.998,-11.623,8.4,8.59],["M105","","galaxy",161.957,12.582,4.9,9.27],["M106","","galaxy",184.74,47.304,17.0,9.29],["M107","","globular",248.133,-13.054,7.8,8.85],["M108","","galaxy",167.879,55.674,4.0,10.05],["M109","","galaxy",179.4,53.375,8.1,9.88],["M110","","galaxy",10.092,41.685,16.2,8.15]];
+const STARS=[
+ ["Sirius",101.287,-16.716,-1.46],["Canopus",95.988,-52.696,-0.74],
+ ["Rigil Kentaurus",219.902,-60.834,-0.27],["Arcturus",213.915,19.182,-0.05],
+ ["Vega",279.234,38.784,0.03],["Capella",79.172,45.998,0.08],
+ ["Rigel",78.634,-8.202,0.13],["Procyon",114.825,5.225,0.34],
+ ["Achernar",24.429,-57.237,0.46],["Betelgeuse",88.793,7.407,0.50],
+ ["Hadar",210.956,-60.373,0.61],["Altair",297.696,8.868,0.77],
+ ["Acrux",186.650,-63.099,0.77],["Aldebaran",68.980,16.509,0.85],
+ ["Spica",201.298,-11.161,0.98],["Antares",247.352,-26.432,1.09],
+ ["Pollux",116.329,28.026,1.14],["Fomalhaut",344.413,-29.622,1.16],
+ ["Deneb",310.358,45.280,1.25],["Mimosa",191.930,-59.689,1.25],
+ ["Regulus",152.093,11.967,1.35],["Adhara",104.656,-28.972,1.50],
+ ["Castor",113.650,31.888,1.58],["Shaula",263.402,-37.104,1.62],
+ ["Gacrux",187.791,-57.113,1.63],["Miaplacidus",138.300,-69.717,1.67],
+ ["Alnilam",84.053,-1.202,1.69],["Alnair",332.058,-46.961,1.74],
+ ["Avior",125.628,-59.509,1.86],["Atria",252.166,-69.028,1.91],
+ ["Peacock",306.412,-56.735,1.94]
+];
+const WILLOUGHBY_HORIZON=`138 26
+144 27
+148 32
+155 33
+161 34
+177 32
+182 27
+184 24
+185 15
+217 14
+225 20
+232 20
+233 22
+261 38
+291 23
+292 43
+295 37
+313 20
+322 25
+325 33
+348 32
+351 26
+359 13
+20 14
+21 49
+65 57
+72 60
+81 54
+132 49
+136 38
+137 27`;
+const WHEENY_HORIZON=`91 17
+72 11
+62 13
+56 21
+47 29
+40 29
+31 26
+27 13
+349 8
+329 11
+305 10
+283 12
+277 10
+276 40
+237 43
+229 45
+224 39
+210 35
+180 15
+180 13
+178 24
+167 27
+162 33
+150 25
+144 21
+142 27
+133 27
+132 17
+131 18
+131 23
+120 18
+106 12`;
+
+/* ---------- state ---------- */
+const S={lat:-33.80,lon:151.21,site:"Willoughby",target:null,night:null,t:null,
+  track:[],fov:60,decl:12.7,tweak:0,ori:null,frozen:false,manual:{az:0,alt:35},
+  horizon:[],camOn:false,events:0,absolute:false,src:"none",hatch:true,moonRing:0,darkAlt:-12,hushBanner:false,playing:false,hold:false,M:null,err:"",perm:""};
+
+const cv=$("sky"), ctx=cv.getContext("2d");
+let W=0,Hh=0,DPR=1;
+function resize(){DPR=Math.min(devicePixelRatio||1,2);W=innerWidth;Hh=innerHeight;
+  cv.width=W*DPR;cv.height=Hh*DPR;cv.style.width=W+"px";cv.style.height=Hh+"px";
+  ctx.setTransform(DPR,0,0,DPR,0,0);}
+addEventListener("resize",resize);resize();
+function toast(m){const t=$("toast");t.textContent=m;t.classList.add("show");
+  clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove("show"),2400);}
+
+/* ---------- night + track ---------- */
+function buildNight(){
+  const d=$("dateIn").valueAsDate||new Date();
+  const noon=new Date(d.getFullYear(),d.getMonth(),d.getDate(),12,0,0);
+  const sunAlt=ms=>{const j=jd(new Date(ms)),s=sunRaDec(j);return altaz(s.ra,s.dec,j,S.lat,S.lon).alt;};
+  const step=5*60000,end=noon.getTime()+24*3600000,cross=[];
+  let prev=sunAlt(noon.getTime());
+  for(let t=noon.getTime()+step;t<=end;t+=step){
+    const a=sunAlt(t);
+    for(const lvl of[0,S.darkAlt]) if((prev-lvl)*(a-lvl)<0)
+      cross.push({t:t-step+((lvl-prev)/(a-prev))*step,lvl,down:a<prev});
+    prev=a;
+  }
+  const pick=(l,dn)=>{const c=cross.find(c=>c.lvl===l&&c.down===dn);return c?c.t:null;};
+  const set=pick(0,true),rise=pick(0,false);
+  S.night={start:(set??noon.getTime()+7*3600000)-30*60000,
+           stop:(rise??noon.getTime()+18*3600000)+30*60000,
+           dusk:pick(S.darkAlt,true),dawn:pick(S.darkAlt,false)};
+  const now=Date.now();
+  if(!S.t||S.t<S.night.start||S.t>S.night.stop)
+    S.t=new Date(now>=S.night.start&&now<=S.night.stop?now:(S.night.dusk??S.night.start)+3600000);
+  $("rail").value=Math.round(1000*(S.t.getTime()-S.night.start)/(S.night.stop-S.night.start));
+  computeTrack();tick();
+}
+function radecAt(ms){const t=S.target;if(!t)return null;
+  if(t.kind==="sun")return sunRaDec(jd(new Date(ms)));
+  if(t.kind==="moon")return moonRaDec(jd(new Date(ms)));
+  if(t.kind==="comet")return cometRaDec(jd(new Date(ms)),t.el);
+  return{ra:t.ra,dec:t.dec};}
+function posAt(ms){const rd=radecAt(ms);if(!rd)return null;
+  return altaz(rd.ra,rd.dec,jd(new Date(ms)),S.lat,S.lon);}
+function horizonAt(az){
+  const p=S.horizon;if(!p.length)return 0;if(p.length===1)return p[0].alt;
+  const a=((az%360)+360)%360;
+  for(let i=0;i<p.length;i++){
+    const q=p[i],r=p[(i+1)%p.length];
+    let x0=q.az,x1=r.az;if(x1<=x0)x1+=360;
+    let x=a;if(x<x0)x+=360;
+    if(x>=x0&&x<=x1){const f=x1===x0?0:(x-x0)/(x1-x0);return q.alt+f*(r.alt-q.alt);}
+  }
+  return p[0].alt;
+}
+function computeTrack(){
+  if(!S.target||!S.night){S.track=[];return;}
+  const out=[];
+  for(let t=S.night.start;t<=S.night.stop;t+=4*60000){
+    const j=jd(new Date(t)),p=posAt(t),mrd=moonRaDec(j),
+          m=altaz(mrd.ra,mrd.dec,j,S.lat,S.lon);
+    out.push({t,az:p.az,alt:p.alt,clear:p.alt>horizonAt(p.az),
+      moon:m.alt>-1?sep(radecAt(t),mrd):999});
+  }
+  S.track=out;renderWindows();
+}
+const hhmm=ms=>{const d=new Date(ms);
+  return String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");};
+function renderWindows(){
+  const el=$("windows");
+  if(!S.target){el.innerHTML="Pick a target to see its path.";return;}
+  const dark=S.night.dusk??S.night.start,lite=S.night.dawn??S.night.stop;
+  const runs=[];let cur=null;
+  for(const p of S.track){
+    const ok=p.clear&&p.t>=dark&&p.t<=lite;
+    if(ok&&!cur)cur={a:p.t,b:p.t};else if(ok)cur.b=p.t;else if(cur){runs.push(cur);cur=null;}
+  }
+  if(cur)runs.push(cur);
+  const good=runs.filter(r=>r.b-r.a>=15*60000);
+  const hz=S.horizon.length?`${S.horizon.length} horizon points`:"flat horizon";
+  const dn={"-18":"astro dark","-12":"nautical dark","-6":"civil dark"}[String(S.darkAlt)];
+  el.innerHTML=good.length
+    ?`<span style="color:var(--hot)">Clear ${good.map(r=>hhmm(r.a)+" → "+hhmm(r.b)).join(", ")}</span><br>
+      <span class="no">${dn} ${hhmm(dark)}–${hhmm(lite)} · ${hz}</span>`
+    :`<span class="no">Never clear in ${dn} · ${hz}</span>`;
+}
+
+/* ---------- orientation ---------- */
+function rot(a,b,g){
+  a*=D;b*=D;g*=D;
+  const cA=Math.cos(a),sA=Math.sin(a),cB=Math.cos(b),sB=Math.sin(b),cG=Math.cos(g),sG=Math.sin(g);
+  return[cA*cG-sA*sB*sG,-cB*sA,cA*sG+cG*sA*sB,
+         cG*sA+cA*sB*sG, cA*cB,sA*sG-cA*cG*sB,
+         -cB*sG,         sB,   cB*cG];
+}
+function basis(){
+  if(!S.ori){
+    const az=S.manual.az*D,al=S.manual.alt*D;
+    return{f:[Math.cos(al)*Math.sin(az),Math.cos(al)*Math.cos(az),Math.sin(al)],
+           r:[Math.cos(az),-Math.sin(az),0],
+           u:[-Math.sin(al)*Math.sin(az),-Math.sin(al)*Math.cos(az),Math.cos(al)]};
+  }
+  const M=S.M||rot(S.ori.alpha,S.ori.beta,S.ori.gamma);
+  const th=((screen.orientation&&screen.orientation.angle)||0)*D;
+  const ap=v=>[M[0]*v[0]+M[1]*v[1]+M[2]*v[2],M[3]*v[0]+M[4]*v[1]+M[5]*v[2],M[6]*v[0]+M[7]*v[1]+M[8]*v[2]];
+  return{f:ap([0,0,-1]),r:ap([Math.cos(th),Math.sin(th),0]),u:ap([-Math.sin(th),Math.cos(th),0])};
+}
+function vec(az,alt){const a=(az-S.decl-S.tweak)*D,e=alt*D;
+  return[Math.cos(e)*Math.sin(a),Math.cos(e)*Math.cos(a),Math.sin(e)];}
+const dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+let B=null,FOC=1;
+function project(v){const z=dot(v,B.f);if(z<=0.02)return null;
+  return[W/2+dot(v,B.r)/z*FOC,Hh/2-dot(v,B.u)/z*FOC];}
+function centreAzAlt(){const f=B.f;
+  return{alt:Math.asin(Math.max(-1,Math.min(1,f[2])))*R2D,
+         az:((Math.atan2(f[0],f[1])*R2D+S.decl+S.tweak)%360+360)%360};}
+
+/* ---------- drawing ---------- */
+function poly(pts,style,width,dash){
+  ctx.save();ctx.strokeStyle=style;ctx.lineWidth=width;if(dash)ctx.setLineDash(dash);
+  ctx.beginPath();let pen=false;
+  for(const p of pts){if(!p){pen=false;continue;}
+    if(!pen){ctx.moveTo(p[0],p[1]);pen=true;}else ctx.lineTo(p[0],p[1]);}
+  ctx.stroke();ctx.restore();
+}
+function label(x,y,t,c,s,al){ctx.save();ctx.font=`${s}px ui-monospace,monospace`;ctx.fillStyle=c;
+  ctx.textAlign=al||"center";ctx.textBaseline="middle";ctx.fillText(t,x,y);ctx.restore();}
+
+function draw(){
+  B=basis();FOC=(Hh/2)/Math.tan(S.fov/2*D);
+  ctx.clearRect(0,0,W,Hh);
+  const c=centreAzAlt();
+  $("look").textContent=`looking: az ${c.az.toFixed(0)}° alt ${c.alt.toFixed(0)}° · fov ${S.fov}° · ${S.ori?"gyro":"manual"}`;
+
+  for(let alt=-10;alt<=80;alt+=10){
+    const pts=[];for(let az=0;az<=360;az+=3)pts.push(project(vec(az,alt)));
+    const major=alt===0;
+    poly(pts,major?"#8a3418":"#3a140e",major?2:1,major?null:[3,5]);
+    if(!major&&alt>0){const p=project(vec(c.az,alt));if(p)label(p[0],p[1]-8,alt+"°","#5e2415",10);}
+  }
+  for(let az=0;az<360;az+=15){
+    const pts=[];for(let alt=-8;alt<=88;alt+=3)pts.push(project(vec(az,alt)));
+    const card=az%90===0,mer=az===0||az===180;
+    poly(pts,mer?"#7a2f5a":(card?"#6a2412":"#33110c"),mer?2:1,mer?[8,6]:null);
+    if(az%45===0){const p=project(vec(az,0));
+      if(p)label(p[0],p[1]+16,["N","NE","E","SE","S","SW","W","NW"][az/45],card?"#c9603a":"#7a3420",card?13:11);}
+  }
+  {const p=project(vec(180,60));if(p)label(p[0],p[1],"MERIDIAN","#7a2f5a",10);}
+
+  const j=jd(S.t||new Date());
+  for(const[nm,ra,dec,mag]of STARS){
+    const q=altaz(ra,dec,j,S.lat,S.lon);if(q.alt<-2)continue;
+    const p=project(vec(q.az,q.alt));if(!p)continue;
+    ctx.beginPath();ctx.arc(p[0],p[1],Math.max(1.2,3.4-mag*0.7),0,7);
+    ctx.fillStyle="rgba(255,236,220,.85)";ctx.fill();
+    if(mag<1.0)label(p[0],p[1]-11,nm,"rgba(255,200,170,.45)",10);
+  }
+
+  if(S.horizon.length>1){
+    const pts=[],fence=[];
+    for(let i=0;i<S.horizon.length;i++){
+      const a=S.horizon[i],b=S.horizon[(i+1)%S.horizon.length];
+      const span=((b.az-a.az)+360)%360,n=Math.max(2,Math.round(span/2));
+      for(let k=0;k<n;k++){
+        const f=k/n,az=a.az+span*f,alt=a.alt+(b.alt-a.alt)*f;
+        pts.push(project(vec(az,alt)));
+        if(k%3===0){fence.push(project(vec(az,alt)));fence.push(project(vec(az,alt-9)));fence.push(null);}
+      }
+    }
+    if(S.hatch)poly(fence,"rgba(255,176,102,.28)",1);
+    poly(pts,"#ffb066",2.5);
+  }
+
+  if(S.moonRing){
+    const j2=jd(S.t||new Date()), mrd=moonRaDec(j2), mp=altaz(mrd.ra,mrd.dec,j2,S.lat,S.lon);
+    const m=[Math.cos(mp.alt*D)*Math.sin(mp.az*D),Math.cos(mp.alt*D)*Math.cos(mp.az*D),Math.sin(mp.alt*D)];
+    let e1=[m[1],-m[0],0];const n1=Math.hypot(e1[0],e1[1]);
+    e1=n1>1e-6?[e1[0]/n1,e1[1]/n1,0]:[1,0,0];
+    const e2=[m[1]*e1[2]-m[2]*e1[1],m[2]*e1[0]-m[0]*e1[2],m[0]*e1[1]-m[1]*e1[0]];
+    const ring=r=>{const pts=[];
+      for(let t=0;t<=360;t+=3){
+        const cr=Math.cos(r*D),sr=Math.sin(r*D),ct=Math.cos(t*D),st=Math.sin(t*D);
+        const v=[cr*m[0]+sr*(ct*e1[0]+st*e2[0]),
+                 cr*m[1]+sr*(ct*e1[1]+st*e2[1]),
+                 cr*m[2]+sr*(ct*e1[2]+st*e2[2])];
+        pts.push(project(vec(Math.atan2(v[0],v[1])*R2D,Math.asin(Math.max(-1,Math.min(1,v[2])))*R2D)));
+      }
+      return pts;};
+    poly(ring(S.moonRing),"rgba(150,190,235,.35)",2);
+    poly(ring(S.moonRing*0.5),"rgba(150,190,235,.14)",1,[4,7]);
+    const mp2=project(vec(mp.az,mp.alt));
+    if(mp2){ctx.save();ctx.fillStyle="rgba(180,210,245,.5)";
+      ctx.beginPath();ctx.arc(mp2[0],mp2[1],7,0,7);ctx.fill();ctx.restore();
+      label(mp2[0],mp2[1]-18,Math.round(moonLit(j2)*100)+"%","rgba(160,195,235,.6)",11);}
+  }
+
+  if(S.target&&S.track.length){
+    const dark=S.night.dusk??S.night.start,lite=S.night.dawn??S.night.stop;
+    let seg=[],mode=null;
+    const COL={clear:"#ff6b35",moon:"#8fb4dd",twilight:"#6d2a14",blocked:"#8a4526"};
+    const flush=()=>{if(seg.length>1)poly(seg,COL[mode],
+      mode==="clear"?3:(mode==="moon"?3:2),
+      (mode==="clear"||mode==="moon")?null:[5,6]);seg=[];};
+    for(const p of S.track){
+      const m=(p.t<dark||p.t>lite)?"twilight":(!p.clear?"blocked":
+               (S.moonRing&&p.moon<S.moonRing?"moon":"clear"));
+      if(m!==mode){const last=seg[seg.length-1];flush();mode=m;if(last)seg.push(last);}
+      seg.push(project(vec(p.az,p.alt)));
+    }
+    flush();
+    let lastHour=-1;
+    for(const p of S.track){
+      const d=new Date(p.t);
+      if(d.getHours()!==lastHour&&d.getMinutes()<4){
+        lastHour=d.getHours();const s=project(vec(p.az,p.alt));if(!s)continue;
+        ctx.beginPath();ctx.arc(s[0],s[1],4,0,7);
+        ctx.fillStyle=p.clear?"#ffcf6b":"#000";ctx.strokeStyle="#ffcf6b";ctx.lineWidth=1.5;
+        ctx.fill();ctx.stroke();
+        label(s[0]+14,s[1],String(lastHour).padStart(2,"0")+"h","#ffcf6b",11,"left");
+      }
+    }
+    const now=posAt(S.t.getTime()),s=project(vec(now.az,now.alt));
+    if(s){ctx.save();ctx.strokeStyle="#ffcf6b";ctx.lineWidth=2;
+      ctx.beginPath();ctx.arc(s[0],s[1],13,0,7);ctx.stroke();
+      ctx.beginPath();ctx.arc(s[0],s[1],3,0,7);ctx.fillStyle="#ffcf6b";ctx.fill();ctx.restore();
+      label(s[0],s[1]-24,S.target.name,"#ffcf6b",13);}
+    $("altaz").textContent=`alt ${now.alt.toFixed(1)}° az ${now.az.toFixed(1)}°`;
+    {const j3=jd(S.t),mrd=moonRaDec(j3),ma=altaz(mrd.ra,mrd.dec,j3,S.lat,S.lon);
+     const sp=sep(radecAt(S.t.getTime()),mrd);
+     $("moonline").textContent=ma.alt<0
+       ? `moon down (${Math.round(moonLit(j3)*100)}% lit)`
+       : `moon ${Math.round(moonLit(j3)*100)}% lit, alt ${ma.alt.toFixed(0)}° · separation ${sp.toFixed(0)}°`;}
+  }
+  requestAnimationFrame(draw);
+}
+
+/* ---------- sensors ----------
+   Four routes, tried in order. Android Chrome often has one working while the
+   others stay silent, so we try them all and report which one answered. */
+let attached=false, sensorObj=null;
+function note(msg){S.err=msg;}
+function fromQuat(q){ // [x,y,z,w] device -> world (ENU)
+  const[x,y,z,w]=q;
+  return[1-2*(y*y+z*z), 2*(x*y-z*w),   2*(x*z+y*w),
+         2*(x*y+z*w),   1-2*(x*x+z*z), 2*(y*z-x*w),
+         2*(x*z-y*w),   2*(y*z+x*w),   1-2*(x*x+y*y)];
+}
+function onOri(e,src){
+  if(S.hold)return;
+  if(e.alpha==null&&e.webkitCompassHeading==null)return;
+  S.events++;S.src=src;S.M=null;
+  let alpha=e.alpha;
+  if(typeof e.webkitCompassHeading==="number"&&!isNaN(e.webkitCompassHeading)){
+    alpha=360-e.webkitCompassHeading;S.absolute=true;
+  }else if(e.absolute||src==="deviceorientationabsolute")S.absolute=true;
+  S.ori={alpha,beta:e.beta||0,gamma:e.gamma||0};
+}
+function startGenericSensor(){
+  const Abs=window.AbsoluteOrientationSensor, Rel=window.RelativeOrientationSensor;
+  const Ctor=Abs||Rel; if(!Ctor)return note("No OrientationSensor in this browser");
+  try{
+    sensorObj=new Ctor({frequency:30,referenceFrame:"device"});
+    sensorObj.addEventListener("reading",()=>{
+      if(S.hold)return;
+      S.events++;S.src=Abs?"AbsoluteOrientationSensor":"RelativeOrientationSensor";
+      S.absolute=!!Abs;S.M=fromQuat(sensorObj.quaternion);S.ori={alpha:0,beta:0,gamma:0};
+    });
+    sensorObj.addEventListener("error",ev=>{
+      note((ev.error&&ev.error.name)||"sensor error");
+      if(ev.error&&ev.error.name==="NotAllowedError")
+        note("NotAllowedError — Chrome's Motion sensors permission is blocked");
+    });
+    sensorObj.start();
+  }catch(err){note(err.name+": "+err.message);}
+}
+function attach(){
+  if(attached)return;attached=true;
+  addEventListener("deviceorientationabsolute",e=>onOri(e,"deviceorientationabsolute"),true);
+  addEventListener("deviceorientation",e=>onOri(e,S.src==="deviceorientationabsolute"?S.src:"deviceorientation"),true);
+  if(navigator.permissions&&navigator.permissions.query){
+    Promise.all(["accelerometer","gyroscope","magnetometer"].map(n=>
+      navigator.permissions.query({name:n}).then(r=>n+":"+r.state).catch(()=>n+":n/a")
+    )).then(v=>{S.perm=v.join("  ");});
+  }
+  startGenericSensor();
+}
+function enablePointing(){
+  const go=()=>{attach();setTimeout(checkSensors,1500);};
+  if(window.DeviceOrientationEvent&&DeviceOrientationEvent.requestPermission){
+    DeviceOrientationEvent.requestPermission()
+      .then(r=>{if(r==="granted")go();else{note("Permission denied");checkSensors();}})
+      .catch(err=>{note(err.name);checkSensors();});
+  }else go();
+}
+function checkSensors(){
+  const inFrame=window.self!==window.top, secure=window.isSecureContext;
+  $("diag").innerHTML=
+    `<i>Page</i>${location.protocol}<br>`+
+    `<i>Secure context</i><span class="${secure?'ok':'bad'}">${secure?"yes":"no"}</span><br>`+
+    `<i>In a frame</i><span class="${inFrame?'bad':'ok'}">${inFrame?"yes":"no"}</span><br>`+
+    `<i>Readings</i><span class="${S.events?'ok':'bad'}">${S.events}</span><br>`+
+    `<i>Route</i>${S.events?S.src:"none"}<br>`+
+    `<i>Reference</i>${S.events?(S.absolute?"absolute (compass)":"relative (drifts)"):"—"}<br>`+
+    `<i>Permissions</i>${S.perm||"not queried"}<br>`+
+    `<i>Last error</i><span class="${S.err?'bad':''}">${S.err||"none"}</span>`;
+  const b=$("banner");
+  if(S.events>0||S.hushBanner){b.classList.remove("show");return;}
+  b.classList.add("show");
+  $("bTitle").textContent="Pointing off";
+  $("bBody").textContent = inFrame ? "running in a frame"
+    : (!secure ? "needs an https:// page" : "no sensor data — see Setup");
+}
+$("bAct").onclick=()=>{enablePointing();$("banner").classList.remove("show");};
+$("bClose").onclick=()=>{S.hushBanner=true;$("banner").classList.remove("show");};
+$("enableBtn").onclick=enablePointing;
+$("recheckBtn").onclick=checkSensors;
+
+/* ---------- touch: drag, pinch, double-tap ---------- */
+const ptrs=new Map();let pinch=null,dragStart=null,lastTap=0;
+cv.addEventListener("pointerdown",e=>{
+  cv.setPointerCapture(e.pointerId);
+  ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(ptrs.size===2){
+    const[a,b]=[...ptrs.values()];
+    pinch={d:Math.hypot(a.x-b.x,a.y-b.y),fov:S.fov};dragStart=null;
+  }else if(ptrs.size===1){
+    dragStart={x:e.clientX,y:e.clientY,az:S.manual.az,alt:S.manual.alt};
+    const now=Date.now();
+    if(now-lastTap<300){S.fov=60;$("fovIn").value=60;toast("Field of view 60°");}
+    lastTap=now;
+  }
+});
+cv.addEventListener("pointermove",e=>{
+  if(!ptrs.has(e.pointerId))return;
+  ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(pinch&&ptrs.size===2){
+    const[a,b]=[...ptrs.values()],d=Math.hypot(a.x-b.x,a.y-b.y);
+    if(d>10){S.fov=Math.max(15,Math.min(120,Math.round(pinch.fov*pinch.d/d)));$("fovIn").value=S.fov;}
+  }else if(dragStart&&!S.ori){
+    S.manual.az=dragStart.az-(e.clientX-dragStart.x)*S.fov/W;
+    S.manual.alt=Math.max(-25,Math.min(88,dragStart.alt+(e.clientY-dragStart.y)*S.fov/W));
+  }
+});
+const endPtr=e=>{ptrs.delete(e.pointerId);if(ptrs.size<2)pinch=null;if(!ptrs.size)dragStart=null;};
+cv.addEventListener("pointerup",endPtr);cv.addEventListener("pointercancel",endPtr);
+
+/* ---------- controls ---------- */
+$("camBtn").onclick=async()=>{
+  if(S.camOn){$("cam").srcObject.getTracks().forEach(t=>t.stop());
+    $("cam").style.display="none";S.camOn=false;$("camBtn").classList.remove("on");return;}
+  try{
+    const st=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"}}});
+    $("cam").srcObject=st;$("cam").style.display="block";S.camOn=true;$("camBtn").classList.add("on");
+  }catch(err){toast("Camera needs an https:// page");}
+};
+$("markBtn").onclick=()=>{
+  const c=centreAzAlt();
+  S.horizon=S.horizon.filter(h=>Math.abs(h.az-c.az)>0.5);
+  S.horizon.push({az:+c.az.toFixed(1),alt:+c.alt.toFixed(1)});
+  S.horizon.sort((a,b)=>a.az-b.az);
+  horizNote();toast(`Marked az ${c.az.toFixed(0)}° alt ${c.alt.toFixed(0)}°`);computeTrack();
+};
+$("holdBtn").onclick=()=>{S.hold=!S.hold;$("holdBtn").classList.toggle("on",S.hold);
+  toast(S.hold?"View held still — screenshot away":"View follows the phone again");};
+$("darkBtn").onclick=()=>{
+  S.darkAlt=S.darkAlt===-12?-18:(S.darkAlt===-18?-6:-12);
+  $("darkBtn").textContent="Dark: "+({"-18":"astronomical −18°","-12":"nautical −12°","-6":"civil −6°"}[String(S.darkAlt)]);
+  buildNight();
+};
+$("moonBtn").onclick=()=>{
+  S.moonRing=S.moonRing===0?50:(S.moonRing===50?100:0);
+  $("moonBtn").classList.toggle("on",!!S.moonRing);
+  $("moonBtn").textContent="Moon ring: "+(S.moonRing?S.moonRing+"° "+(S.moonRing===50?"NB":"BB"):"off");
+  computeTrack();
+};
+$("hatchBtn").onclick=()=>{S.hatch=!S.hatch;$("hatchBtn").classList.toggle("on",S.hatch);
+  $("hatchBtn").textContent="Ground hatching "+(S.hatch?"on":"off");};
+let playTimer=null;
+$("playBtn").onclick=()=>{
+  S.playing=!S.playing;$("playBtn").classList.toggle("on",S.playing);
+  $("playBtn").textContent=S.playing?"Stop":"Play night";
+  clearInterval(playTimer);
+  if(!S.playing)return;
+  playTimer=setInterval(()=>{
+    let t=S.t.getTime()+6*60000;
+    if(t>S.night.stop)t=S.night.start;
+    S.t=new Date(t);
+    $("rail").value=Math.round(1000*(t-S.night.start)/(S.night.stop-S.night.start));
+    tick();
+  },70);
+};
+$("nowBtn").onclick=()=>{const n=Date.now();
+  if(n<S.night.start||n>S.night.stop){toast("Now is outside tonight's window");return;}
+  S.t=new Date(n);$("rail").value=Math.round(1000*(n-S.night.start)/(S.night.stop-S.night.start));tick();};
+$("findBtn").onclick=()=>{
+  if(!S.target)return;
+  const p=posAt(S.t.getTime());
+  if(S.ori){toast(`${S.target.name}: az ${p.az.toFixed(0)}° alt ${p.alt.toFixed(0)}°`);return;}
+  S.manual.az=p.az;S.manual.alt=Math.max(0,p.alt);toast("Centred on "+S.target.name);
+};
+$("rail").oninput=e=>{S.t=new Date(S.night.start+(e.target.value/1000)*(S.night.stop-S.night.start));tick();};
+function tick(){$("clock").textContent=hhmm(S.t.getTime());
+  $("datelbl").textContent=S.t.toLocaleDateString("en-AU",{day:"numeric",month:"short"})+" · "+S.site;}
+
+const open=id=>$(id).classList.add("open"),shut=id=>$(id).classList.remove("open");
+$("targetBtn").onclick=()=>open("targetSheet");
+$("closeTargets").onclick=()=>shut("targetSheet");
+$("setBtn").onclick=()=>{checkSensors();open("setSheet");};
+$("closeSet").onclick=()=>{shut("setSheet");buildNight();};
+$("alignBtn").onclick=()=>open("alignSheet");
+$("closeAlign").onclick=()=>shut("alignSheet");
+
+function setTarget(t){S.target=t;$("targetName").textContent=t.name;shut("targetSheet");
+  computeTrack();toast(t.name+" loaded");}
+const ALL=DSO.map(([id,sub,ra,dec])=>({id,sub,ra,dec,type:"",size:"",mag:""}))
+  .concat(MESSIER.map(([id,cn,ty,ra,dec,size,mag])=>({id,sub:cn,ra,dec,type:ty,size,mag,messier:1})));
+function renderTargets(q){
+  const list=$("dsoList");list.innerHTML="";
+  q=(q||"").trim().toLowerCase();
+  const pool=q?ALL:ALL.filter(o=>!o.messier);
+  const hits=pool.filter(o=>!q||o.id.toLowerCase().includes(q)||
+    (o.sub||"").toLowerCase().includes(q)||(o.type||"").toLowerCase().includes(q));
+  $("dsoHead").textContent=q?`${hits.length} match${hits.length===1?"":"es"}`
+    :"My targets · search for any Messier";
+  hits.slice(0,120).forEach(o=>{
+    const b=document.createElement("button");
+    const meta=[o.type,o.mag!==""?"mag "+o.mag:"",o.size!==""?o.size+"'":""].filter(Boolean).join(" · ");
+    b.innerHTML=`${o.id}${o.sub?" · "+o.sub:""}<span>${meta||((o.ra/15).toFixed(1)+"h "+o.dec.toFixed(0)+"°")}</span>`;
+    b.onclick=()=>setTarget({name:o.sub||o.id,ra:o.ra,dec:o.dec});
+    list.appendChild(b);
+  });
+}
+$("searchIn").oninput=e=>renderTargets(e.target.value);
+renderTargets("");
+[["Moon","moon"],["Sun","sun"]].forEach(([n,k])=>{
+  const b=document.createElement("button");b.textContent=n;
+  b.onclick=()=>setTarget({name:n,kind:k});$("ssList").appendChild(b);});
+{const b=document.createElement("button");
+ const rd=cometRaDec(jd(new Date()),C220);
+ b.innerHTML=`Comet 220P/McNaught<span>${(rd.ra/15).toFixed(2)}h ${rd.dec.toFixed(1)}° · ${rd.dist.toFixed(2)} AU</span>`;
+ b.onclick=()=>setTarget({name:"220P/McNaught",kind:"comet",el:C220});
+ $("ssList").appendChild(b);}
+function parseAng(s,isRA){
+  s=s.trim();if(!s)return NaN;
+  const m=s.match(/(-?[\d.]+)[hd°: ]+([\d.]+)[m'′: ]*([\d.]*)/i);
+  if(m){const sign=s[0]==="-"?-1:1;
+    return sign*(Math.abs(+m[1])+(+m[2]||0)/60+(+m[3]||0)/3600)*(isRA?15:1);}
+  return parseFloat(s);
+}
+$("mGo").onclick=()=>{
+  const raS=$("mRA").value,ra=parseAng(raS,/[hH]/.test(raS)),dec=parseAng($("mDec").value,false);
+  if(isNaN(ra)||isNaN(dec)){toast("Couldn't read those coordinates");return;}
+  setTarget({name:$("mName").value||"Manual target",ra:((ra%360)+360)%360,dec});};
+STARS.filter(s=>s[3]<1.7).forEach(([nm,ra,dec])=>{
+  const b=document.createElement("button");b.textContent=nm;
+  b.onclick=()=>{
+    const c=centreAzAlt(),q=altaz(ra,dec,jd(new Date()),S.lat,S.lon);
+    if(q.alt<0){toast(nm+" is below the horizon");return;}
+    let d=q.az-c.az;while(d>180)d-=360;while(d<-180)d+=360;
+    S.tweak=Math.max(-40,Math.min(40,S.tweak+d));$("tweak").value=S.tweak;
+    shut("alignSheet");toast(`Aligned on ${nm} — nudge ${S.tweak.toFixed(1)}°`);};
+  $("alignList").appendChild(b);});
+
+document.querySelectorAll("[data-site]").forEach(b=>b.onclick=()=>{
+  const[la,lo,nm]=b.dataset.site.split(",");
+  S.lat=+la;S.lon=+lo;S.site=nm;$("latIn").value=S.lat;$("lonIn").value=S.lon;
+  buildNight();toast(nm);});
+$("gpsBtn").onclick=()=>navigator.geolocation.getCurrentPosition(p=>{
+  S.lat=+p.coords.latitude.toFixed(5);S.lon=+p.coords.longitude.toFixed(5);S.site="Here";
+  $("latIn").value=S.lat;$("lonIn").value=S.lon;buildNight();toast("Location set");
+},()=>toast("Location unavailable — type it in"));
+$("latIn").oninput=e=>{S.lat=+e.target.value;buildNight();};
+$("lonIn").oninput=e=>{S.lon=+e.target.value;buildNight();};
+$("dateIn").onchange=buildNight;
+$("decl").oninput=e=>S.decl=+e.target.value;
+$("tweak").oninput=e=>S.tweak=+e.target.value;
+$("fovIn").oninput=e=>S.fov=+e.target.value;
+
+/* horizon io — Telescopius format: "az alt" per line */
+function horizNote(){$("horizNote").textContent=S.horizon.length?
+  S.horizon.length+" points loaded.":"No points loaded.";}
+function horizToText(){return S.horizon.map(h=>`${Math.round(h.az)} ${Math.round(h.alt)}`).join("\n");}
+function loadHorizon(txt){
+  const pts=[];
+  txt.split(/[\r\n]+/).forEach(l=>{
+    const m=l.trim().match(/^(-?[\d.]+)[\s,;\t]+(-?[\d.]+)/);
+    if(m)pts.push({az:((+m[1]%360)+360)%360,alt:+m[2]});
+  });
+  if(!pts.length){toast("No az/alt pairs found");return;}
+  pts.sort((a,b)=>a.az-b.az||b.alt-a.alt);
+  const uniq=[];for(const q of pts){if(uniq.length&&Math.abs(uniq[uniq.length-1].az-q.az)<0.05)continue;uniq.push(q);}
+  const pts2=uniq;S.horizon=pts2;pts.length=pts2.length;horizNote();computeTrack();
+  toast(S.horizon.length+" horizon points loaded");
+}
+$("loadWill").onclick=()=>{loadHorizon(WILLOUGHBY_HORIZON);$("horizText").value=horizToText();};
+$("loadWheeny").onclick=()=>{loadHorizon(WHEENY_HORIZON);$("horizText").value=horizToText();};
+$("importHoriz").onclick=()=>loadHorizon($("horizText").value);
+$("importFileBtn").onclick=()=>$("horizFile").click();
+$("horizFile").onchange=e=>{const f=e.target.files[0];if(!f)return;
+  const r=new FileReader();r.onload=()=>{loadHorizon(r.result);$("horizText").value=horizToText();};
+  r.readAsText(f);};
+$("fillHoriz").onclick=()=>{$("horizText").value=horizToText();
+  $("horizText").select();toast("Ready to copy");};
+$("undoHoriz").onclick=()=>{S.horizon.pop();horizNote();computeTrack();};
+$("clearHoriz").onclick=()=>{S.horizon=[];horizNote();computeTrack();};
+$("exportHoriz").onclick=()=>{
+  if(!S.horizon.length){toast("Nothing to export");return;}
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([horizToText()],{type:"text/plain"}));
+  a.download=`horizon_${S.site.replace(/\s+/g,"_")}.txt`;a.click();toast("Saved");};
+
+/* boot */
+const today=new Date();
+$("dateIn").value=`${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}-${String(today.getDate()).padStart(2,"0")}`;
+$("latIn").value=S.lat;$("lonIn").value=S.lon;
+loadHorizon(WILLOUGHBY_HORIZON);$("horizText").value=horizToText();
+buildNight();setTarget({name:"Moon",kind:"moon"});
+attach();
+setTimeout(checkSensors,1500);
+if(navigator.wakeLock)navigator.wakeLock.request("screen").catch(()=>{});
+draw();
+</script>
+</body>
+</html>
