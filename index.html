@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<title>SkyTrack versions</title>
+<style>
+  :root{--ink:#ff9a76;--dim:#a8543c;--hot:#ffcf6b;--edge:#43170f;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{margin:0;min-height:100vh;background:#050101;color:var(--ink);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    padding:calc(28px + env(safe-area-inset-top)) 16px calc(28px + env(safe-area-inset-bottom))}
+  h1{font-size:15px;letter-spacing:.28em;text-transform:uppercase;color:var(--dim);
+    font-weight:600;margin:0 0 4px}
+  .sub{font-family:var(--mono);font-size:12px;color:var(--dim);margin:0 0 22px}
+  a{color:inherit;text-decoration:none}
+  .row{display:flex;align-items:center;gap:12px;padding:15px 14px;background:#0d0301;
+    border:1px solid var(--edge);border-top:0}
+  .row:first-of-type{border-top:1px solid var(--edge)}
+  .row .n{font-size:19px;font-weight:600;font-family:var(--mono)}
+  .row .meta{font-family:var(--mono);font-size:11px;color:var(--dim);margin-top:3px}
+  .row .go{margin-left:auto;color:var(--dim);font-size:18px}
+  .latest{background:rgba(255,207,107,.09);border-color:var(--hot)}
+  .latest .n{color:var(--hot)}
+  .tag{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;
+    color:#000;background:var(--hot);padding:2px 6px;margin-left:8px;vertical-align:2px}
+  .note{font-family:var(--mono);font-size:12px;color:var(--dim);line-height:1.7;margin-top:22px}
+  .note b{color:var(--ink);font-weight:400}
+  button{font:inherit;font-size:13px;color:var(--ink);background:#0d0301;
+    border:1px solid var(--edge);padding:10px 14px;margin-top:16px}
+</style>
+</head>
+<body>
+<h1>SkyTrack</h1>
+<p class="sub" id="sub">reading the repository…</p>
+<div id="list"></div>
+<div class="note" id="note"></div>
+<button id="again" style="display:none">Reload</button>
+
+<script>
+"use strict";
+const $=id=>document.getElementById(id);
+
+/* Derive owner and repo from the Pages URL, so this file needs no editing if
+   either is ever renamed. tubbers.github.io/Skytrack/ -> tubbers, Skytrack */
+const owner=location.hostname.split(".")[0];
+const repo=decodeURIComponent(location.pathname.split("/").filter(Boolean)[0]||"");
+
+function versionKey(name){ // skytrack_v3_5.html -> [3,5] for natural sorting
+  const nums=(name.match(/\d+/g)||[]).map(Number);
+  return nums.length?nums:[0];
+}
+function cmp(a,b){
+  const x=versionKey(a.name),y=versionKey(b.name);
+  for(let i=0;i<Math.max(x.length,y.length);i++){
+    const d=(y[i]||0)-(x[i]||0); if(d)return d;
+  }
+  return a.name<b.name?1:-1;
+}
+
+async function load(){
+  $("again").style.display="none";
+  if(!repo){
+    $("sub").textContent="not running from a GitHub Pages project site";
+    $("note").innerHTML="This page lists the repository's files using the GitHub API, "+
+      "which needs the project-site URL shape <b>user.github.io/repo/</b>.";
+    return;
+  }
+  const api=`https://api.github.com/repos/${owner}/${repo}/contents/`;
+  try{
+    const r=await fetch(api,{headers:{Accept:"application/vnd.github+json"}});
+    if(!r.ok)throw new Error("GitHub API returned "+r.status);
+    const files=(await r.json())
+      .filter(f=>f.type==="file"&&/\.html?$/i.test(f.name)&&f.name.toLowerCase()!=="index.html")
+      .sort(cmp);
+    if(!files.length){
+      $("sub").textContent="no versions found yet";
+      $("note").innerHTML="Upload an <b>.html</b> file to the repository root and reload.";
+      $("again").style.display="";
+      return;
+    }
+    $("sub").textContent=`${owner}/${repo} · ${files.length} version${files.length>1?"s":""}`;
+    const list=$("list");list.innerHTML="";
+    files.forEach((f,i)=>{
+      const a=document.createElement("a");
+      a.className="row"+(i===0?" latest":"");
+      a.href=f.name;
+      a.innerHTML=`<div><div class="n">${f.name.replace(/\.html?$/i,"")}`+
+        `${i===0?'<span class="tag">latest</span>':""}</div>`+
+        `<div class="meta">${(f.size/1024).toFixed(1)} KB</div></div><div class="go">›</div>`;
+      list.appendChild(a);
+    });
+    $("note").innerHTML="Newest first, by version number in the filename. "+
+      "New uploads appear here on their own — nothing to edit.";
+  }catch(err){
+    $("sub").textContent="couldn't read the repository";
+    $("note").innerHTML=`<b>${err.message}</b><br><br>`+
+      "The GitHub API allows 60 unauthenticated requests an hour per address, so this "+
+      "can happen after a lot of reloads. Waiting a while fixes it. Otherwise the files "+
+      "are still reachable directly, e.g. <b>skytrack_v3_5.html</b> alongside this page.";
+    $("again").style.display="";
+  }
+}
+$("again").onclick=load;
+load();
+</script>
+</body>
+</html>
